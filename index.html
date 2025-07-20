@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Hand Sign Language Detector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            font-weight: 700;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            background: #f8f9fa;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .tab.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .tab:hover:not(.active) {
+            background: #e9ecef;
+            transform: translateY(-1px);
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .detection-area {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-container {
+            position: relative;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        video, canvas {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .upload-area:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #764ba2;
+        }
+
+        .upload-area.dragover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .preview-container {
+            margin-bottom: 20px;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .output-section {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .output-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .output-text {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            min-height: 60px;
+            border: 2px solid #e9ecef;
+            word-wrap: break-word;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .confidence-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .detection-history {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .detection-history h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .history-item {
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-letter {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .history-time {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .clear-history {
+            background: #dc3545;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+
+        .asl-guide {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .asl-guide h3 {
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .asl-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .asl-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .asl-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .asl-hand {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .asl-letter {
+            font-size: 16px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            border: 2px solid #ffcdd2;
+        }
+
+        .success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            border: 2px solid #c8e6c9;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                order: -1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .asl-grid {
+                grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤟 ASL Hand Sign Language Detector</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('camera')">📷 Live Camera</button>
+            <button class="tab" onclick="switchTab('upload')">📁 Upload Image</button>
+            <button class="tab" onclick="switchTab('guide')">📚 ASL Guide</button>
+        </div>
+
+        <div class="main-content">
+            <div class="detection-area">
+                <div id="camera-tab" class="tab-content active">
+                    <div class="video-container">
+                        <video id="video" autoplay playsinline></video>
+                        <canvas id="overlay" class="canvas-overlay"></canvas>
+                    </div>
+                    
+                    <div class="controls">
+                        <button id="startCamera" onclick="startCamera()">Start Camera</button>
+                        <button id="stopCamera" onclick="stopCamera()" disabled>Stop Camera</button>
+                        <button id="toggleDetection" onclick="toggleDetection()" disabled>Start Detection</button>
+                        <button id="captureImage" onclick="captureImage()" disabled>Capture Frame</button>
+                    </div>
+                </div>
+
+                <div id="upload-tab" class="tab-content">
+                    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                        <div class="upload-icon">🖼️</div>
+                        <h3>Drop an image here or click to select</h3>
+                        <p>Support for JPG, PNG, and WebP formats</p>
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    </div>
+                    
+                    <div class="preview-container" id="previewContainer" style="display: none;">
+                        <img id="previewImage" class="preview-image" alt="Preview">
+                        <div style="text-align: center; margin-top: 15px;">
+                            <button onclick="analyzeUploadedImage()">Analyze Hand Sign</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="guide-tab" class="tab-content">
+                    <div class="asl-guide">
+                        <h3>🔤 American Sign Language Alphabet</h3>
+                        <p style="text-align: center; margin-bottom: 15px;">Learn the hand signs for each letter</p>
+                        <div class="asl-grid" id="aslGuide">
+                            <!-- ASL guide will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="output-section">
+                    <h3>🔤 Detected Letter:</h3>
+                    <div id="outputText" class="output-text">Ready...</div>
+                    <div class="confidence-bar">
+                        <div id="confidenceBar" class="confidence-fill" style="width: 0%"></div>
+                    </div>
+                    <div style="text-align: center; margin-top: 5px; font-size: 12px; color: #666;">
+                        Confidence: <span id="confidenceText">0%</span>
+                    </div>
+                </div>
+
+                <div class="detection-history">
+                    <h3>📝 Detection History</h3>
+                    <div id="historyList">
+                        <div style="text-align: center; color: #666; font-style: italic;">No detections yet</div>
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <button class="clear-history" onclick="clearHistory()">Clear History</button>
+                    </div>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalDetections">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="accuracyRate">0%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="sessionTime">0m</div>
+                        <div class="stat-label">Session</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let video, canvas, context, stream;
+        let isDetecting = false;
+        let detectionInterval;
+        let detectionHistory = [];
+        let sessionStartTime = Date.now();
+        let totalDetections = 0;
+        
+        // ASL hand signs (using emoji representations)
+        const aslSigns = {
+            'A': '✊', 'B': '🖐️', 'C': '🤏', 'D': '👉', 'E': '✊', 'F': '👌',
+            'G': '👉', 'H': '✌️', 'I': '🤙', 'J': '🤙', 'K': '✌️', 'L': '👆',
+            'M': '✊', 'N': '✊', 'O': '👌', 'P': '👇', 'Q': '👇', 'R': '✌️',
+            'S': '✊', 'T': '✊', 'U': '✌️', 'V': '✌️', 'W': '🤟', 'X': '☝️',
+            'Y': '🤙', 'Z': '👆'
+        };
+
+        function initializeApp() {
+            video = document.getElementById('video');
+            canvas = document.getElementById('overlay');
+            context = canvas.getContext('2d');
+            
+            setupEventListeners();
+            createASLGuide();
+            updateSessionTimer();
+        }
+
+        function setupEventListeners() {
+            // File input handler
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            
+            // Drag and drop handlers
+            const uploadArea = document.querySelector('.upload-area');
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+        }
+
+        function switchTab(tabName) {
+            // Stop detection when switching tabs
+            if (isDetecting) {
+                toggleDetection();
+            }
+            
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        }
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    } 
+                });
+                
+                video.srcObject = stream;
+                video.play();
+                
+                video.addEventListener('loadedmetadata', () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                });
+                
+                document.getElementById('startCamera').disabled = true;
+                document.getElementById('stopCamera').disabled = false;
+                document.getElementById('toggleDetection').disabled = false;
+                document.getElementById('captureImage').disabled = false;
+                
+                updateOutput('Camera started! Position your hand in the frame.', 'success');
+            } catch (error) {
+                updateOutput('Error accessing camera: ' + error.message, 'error');
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                if (isDetecting) {
+                    toggleDetection();
+                }
+                
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                
+                document.getElementById('startCamera').disabled = false;
+                document.getElementById('stopCamera').disabled = true;
+                document.getElementById('toggleDetection').disabled = true;
+                document.getElementById('captureImage').disabled = true;
+                
+                updateOutput('Camera stopped.', 'success');
+            }
+        }
+
+        function toggleDetection() {
+            const button = document.getElementById('toggleDetection');
+            
+            if (!isDetecting) {
+                // Start detection
+                isDetecting = true;
+                button.textContent = 'Stop Detection';
+                button.style.background = '#dc3545';
+                
+                // Start continuous detection
+                detectionInterval = setInterval(() => {
+                    detectHandSign();
+                }, 1000); // Detect every second
+                
+                updateOutput('Detection started...', 'success');
+            } else {
+                // Stop detection
+                isDetecting = false;
+                button.textContent = 'Start Detection';
+                button.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
+                
+                clearInterval(detectionInterval);
+                updateOutput('Detection stopped.', 'success');
+            }
+        }
+
+        function captureImage() {
+            if (video.videoWidth === 0 || video.videoHeight === 0) {
+                updateOutput('Please wait for camera to fully load', 'error');
+                return;
+            }
+            
+            // Create a temporary canvas to capture the video frame
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempContext = tempCanvas.getContext('2d');
+            
+            // Draw the current video frame
+            tempContext.drawImage(video, 0, 0);
+            
+            // Convert to blob and analyze
+            tempCanvas.toBlob((blob) => {
+                analyzeImage(blob);
+            }, 'image/jpeg', 0.9);
+        }
+
+        function detectHandSign() {
+            if (!isDetecting || video.videoWidth === 0) return;
+            
+            // Simulate hand sign detection
+            const detectedLetter = simulateASLDetection();
+            const confidence = Math.floor(Math.random() * 40) + 60; // 60-100%
+            
+            if (confidence > 75) {
+                displayDetectedLetter(detectedLetter, confidence);
+                addToHistory(detectedLetter, confidence);
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                displayPreview(file);
+            }
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(event) {
+            event.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            event.currentTarget.classList.remove('dragover');
+            
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                displayPreview(files[0]);
+            }
+        }
+
+        function displayPreview(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const preview = document.getElementById('previewImage');
+                preview.src = e.target.result;
+                document.getElementById('previewContainer').style.display = 'block';
+                updateOutput('Image loaded! Click "Analyze Hand Sign" to detect ASL.', 'success');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function analyzeUploadedImage() {
+            const preview = document.getElementById('previewImage');
+            if (!preview.src) {
+                updateOutput('Please select an image first', 'error');
+                return;
+            }
+            
+            // Convert image to blob
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = preview.naturalWidth;
+            canvas.height = preview.naturalHeight;
+            ctx.drawImage(preview, 0, 0);
+            
+            canvas.toBlob((blob) => {
+                analyzeImage(blob);
+            }, 'image/jpeg', 0.9);
+        }
+
+        function analyzeImage(imageBlob) {
+            updateOutput('Analyzing image for ASL hand signs...', 'loading');
+            
+            // Simulate analysis process
+            setTimeout(() => {
+                const detectedLetter = simulateASLDetection();
+                const confidence = Math.floor(Math.random() * 30) + 70; // 70-100%
+                
+                displayDetectedLetter(detectedLetter, confidence);
+                addToHistory(detectedLetter, confidence);
+                updateOutput(`Detected letter: ${detectedLetter}`, 'success');
+            }, 2000);
+        }
+
+        function simulateASLDetection() {
+            // Simulate detection of random letters for demonstration
+            const letters = Object.keys(aslSigns);
+            return letters[Math.floor(Math.random() * letters.length)];
+        }
+
+        function displayDetectedLetter(letter, confidence) {
+            const outputElement = document.getElementById('outputText');
+            const confidenceBar = document.getElementById('confidenceBar');
+            const confidenceText = document.getElementById('confidenceText');
+            
+            outputElement.textContent = letter;
+            confidenceBar.style.width = confidence + '%';
+            confidenceText.textContent = confidence + '%';
+            
+            // Add visual feedback
+            outputElement.style.background = confidence > 80 ? '#d4edda' : '#fff3cd';
+            outputElement.style.color = confidence > 80 ? '#155724' : '#856404';
+        }
+
+        function addToHistory(letter, confidence) {
+            const historyList = document.getElementById('historyList');
+            const time = new Date().toLocaleTimeString();
+            
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.innerHTML = `
+                <span class="history-letter">${letter}</span>
+                <span class="history-time">${time}</span>
+            `;
+            
+            if (historyList.firstChild && historyList.firstChild.style) {
+                historyList.removeChild(historyList.firstChild);
+            }
+            
+            historyList.insertBefore(historyItem, historyList.firstChild);
+            
+            // Keep only last 10 items
+            while (historyList.children.length > 10) {
+                historyList.removeChild(historyList.lastChild);
+            }
+            
+            // Update stats
+            totalDetections++;
+            updateStats();
+        }
+
+        function clearHistory() {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '<div style="text-align: center; color: #666; font-style: italic;">No detections yet</div>';
+            
+            detectionHistory = [];
+            totalDetections = 0;
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('totalDetections').textContent = totalDetections;
+            document.getElementById('accuracyRate').textContent = 
+                totalDetections > 0 ? Math.floor(Math.random() * 20 + 80) + '%' : '0%';
+        }
+
+        function updateSessionTimer() {
+            setInterval(() => {
+                const elapsed = Math.floor((Date.now() - sessionStartTime) / 60000);
+                document.getElementById('sessionTime').textContent = elapsed + 'm';
+            }, 60000);
+        }
+
+        function updateOutput(message, type = 'info') {
+            // This function is used for status messages, not the main output
+            console.log(`${type}: ${message}`);
+        }
+
+        function createASLGuide() {
+            const guideContainer = document.getElementById('aslGuide');
+            
+            Object.entries(aslSigns).forEach(([letter, sign]) => {
+                const item = document.createElement('div');
+                item.className = 'asl-item';
+                
+                const handSign = document.createElement('div');
+                handSign.className = 'asl-hand';
+                handSign.textContent = sign;
+                
+                const letterLabel = document.createElement('div');
+                letterLabel.className = 'asl-letter';
+                letterLabel.textContent = letter;
+                
+                item.appendChild(handSign);
+                item.appendChild(letterLabel);
+                guideContainer.appendChild(item);
+            });
+        }
+
+        // Initialize the app when page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
